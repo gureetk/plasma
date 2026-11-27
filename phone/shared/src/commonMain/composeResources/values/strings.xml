@@ -69,6 +69,10 @@
     <string name="haptics_text">A light tap as each key is pressed.</string>
     <string name="keep_screen_on">Keep Screen On</string>
     <string name="keep_screen_on_text">While the Remote tab is open.</string>
+    <string name="swipe_pad">Swipe Pad Instead of D-pad</string>
+    <string name="swipe_pad_text">Swipe for the arrows, tap for OK, and hold for a long OK.</string>
+    <string name="swipe_pad_label">Swipe pad</string>
+    <string name="swipe_hint">Swipe · tap for OK</string>
     <string name="paired_tvs">Paired TVs</string>
     <string name="no_paired_tvs">No TVs paired yet.</string>
     <string name="forget">Forget</string>

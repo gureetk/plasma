@@ -2,6 +2,7 @@
 package ca.gureet.plasma.remote.app
 
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.remember
 import androidx.compose.ui.ImageComposeScene
 import androidx.compose.ui.unit.Density
@@ -9,6 +10,7 @@ import ca.gureet.plasma.remote.app.pairing.FindTvScreen
 import ca.gureet.plasma.remote.app.pairing.PairScreen
 import ca.gureet.plasma.remote.app.pairing.PairTarget
 import ca.gureet.plasma.remote.app.pairing.ScanScreen
+import ca.gureet.plasma.remote.app.settings.LocalPhoneSettings
 import ca.gureet.plasma.remote.app.settings.MemoryPrefs
 import ca.gureet.plasma.remote.app.settings.PhoneSettings
 import ca.gureet.plasma.remote.app.settings.SettingsScreen
@@ -61,6 +63,14 @@ class ScreensTest {
     @Test fun theRemoteTab() = drawTab("33-remote", Tab.Remote)
 
     @Test fun theChannelsTab() = drawTab("33-channels", Tab.Channels)
+
+    /** Settings' Swipe Pad Instead of D-pad, before it's first used. */
+    @Test fun theSwipePad() = draw("33-remote-swipe") {
+        val settings = remember { PhoneSettings(MemoryPrefs()).apply { swipePad(true) } }
+        CompositionLocalProvider(LocalPhoneSettings provides settings) {
+            RemoteScreens(rememberDemoTv("Living Room TV"))
+        }
+    }
 
     /** The board's "night", which finds 2 programs and 2 movies in the demo. */
     @Test fun theTypeTab() = drawTab("33-type", Tab.Type, typed = "night")

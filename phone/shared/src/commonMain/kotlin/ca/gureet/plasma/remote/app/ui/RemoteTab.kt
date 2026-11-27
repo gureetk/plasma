@@ -42,6 +42,7 @@ import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import ca.gureet.plasma.remote.app.resources.Res
+import ca.gureet.plasma.remote.app.settings.LocalPhoneSettings
 import ca.gureet.plasma.remote.app.resources.behind_live
 import ca.gureet.plasma.remote.app.resources.go_live
 import ca.gureet.plasma.remote.app.resources.key_back
@@ -82,7 +83,11 @@ fun RemoteTab(tv: TvLink, front: Boolean, playing: RemotePlaying?, colorKeys: Ma
         if (playing != null) {
             NowPlaying(tv, playing, Modifier.alpha(if (front) 1f else AWAY_ALPHA))
         }
-        DPad(tv, Modifier.align(Alignment.CenterHorizontally).padding(vertical = 14.dp))
+        if (LocalPhoneSettings.current?.swipePad == true) {
+            SwipePad(tv, Modifier.padding(vertical = 14.dp))
+        } else {
+            DPad(tv, Modifier.align(Alignment.CenterHorizontally).padding(vertical = 14.dp))
+        }
         Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
             RoundKey(tv, RemoteKey.Back, RemoteIcons.Back, stringResource(Res.string.key_back))
             RoundKey(tv, RemoteKey.Home, RemoteIcons.Home, stringResource(Res.string.key_home))

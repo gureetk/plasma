@@ -55,6 +55,7 @@ kotlin {
         }
         named("desktopTest").dependencies {
             implementation(compose.desktop.currentOs)
+            implementation(libs.compose.mp.ui.test)
         }
         androidMain.dependencies {
             implementation(libs.okhttp)

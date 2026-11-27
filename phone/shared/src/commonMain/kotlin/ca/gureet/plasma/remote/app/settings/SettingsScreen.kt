@@ -64,6 +64,8 @@ import ca.gureet.plasma.remote.app.resources.paired_tvs
 import ca.gureet.plasma.remote.app.resources.remote_section
 import ca.gureet.plasma.remote.app.resources.settings
 import ca.gureet.plasma.remote.app.resources.source_code
+import ca.gureet.plasma.remote.app.resources.swipe_pad
+import ca.gureet.plasma.remote.app.resources.swipe_pad_text
 import ca.gureet.plasma.remote.app.resources.try_demo
 import ca.gureet.plasma.remote.app.tv.PairedTv
 import ca.gureet.plasma.remote.app.ui.RemoteColors
@@ -74,7 +76,7 @@ import ca.gureet.plasma.remote.app.ui.textStyle
 import org.jetbrains.compose.resources.stringResource
 
 /**
- * Settings (brief 5.22): Haptics and Keep Screen On, the paired TVs with Forget, Try the Demo, and
+ * Settings (brief 5.22): Haptics, Keep Screen On and the swipe pad, the paired TVs with Forget, Try the Demo, and
  * About with the licenses. Volume Buttons and Whole-TV Control aren't offered yet.
  */
 @Composable
@@ -92,6 +94,8 @@ fun SettingsScreen(settings: PhoneSettings, paired: List<PairedTv>, version: Str
             Toggle(stringResource(Res.string.haptics), stringResource(Res.string.haptics_text), settings.haptics, settings::haptics)
             Line()
             Toggle(stringResource(Res.string.keep_screen_on), stringResource(Res.string.keep_screen_on_text), settings.keepScreenOn, settings::keepScreenOn)
+            Line()
+            Toggle(stringResource(Res.string.swipe_pad), stringResource(Res.string.swipe_pad_text), settings.swipePad, settings::swipePad)
         }
 
         Heading(stringResource(Res.string.paired_tvs))
