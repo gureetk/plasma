@@ -1892,6 +1892,11 @@ On a phone's browser, paired with a TV whose source has movies and series:
 - [ ] A tap on a title opens its page on the TV; a hold plays it, without opening the browser's menu. Scrolling the list starts nothing.
 - [ ] Posters come in as the list scrolls; a title without one shows its name.
 
+## Plasma Remote's icons and privacy policy (28 November)
+
+- [ ] On an Android phone, the debug build's icon is Plasma's mark on a graphite tile, whatever shape the launcher gives icons, and with themed icons on it's tinted like the others.
+- [ ] Settings › About › Privacy Policy opens plasma.gureet.ca/remote-privacy.html once this is merged and the website has been deployed.
+
 ## Reporting a problem
 
 Open an issue with the bug form. Say what you pressed, what you expected and what happened, and add a photo of the screen if it helps.

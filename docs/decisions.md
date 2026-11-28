@@ -1804,3 +1804,11 @@ docs/testing.md
 | A tab | As the apps' and the page's own Channels: a search over the category shown, the categories as chips (a locked one with a lock, saying it opens on the TV with its PIN), "Thrillers · 250", rows with the poster, name, year, rating and how far in. Titles come 200 at a time. | #230. |
 | Tap and hold | A tap (or a key, or a screen reader) opens the title's page on the TV. A finger held for half a second plays it, with a buzz on Android, and the tap that would follow is dropped; the browser's long-press menu is turned off on rows. A row scrolled past does neither: scrolling cancels the hold. | #230's settled choices. Half a second is the browsers' own long-press time. |
 | Posters | Each row's poster loads as the row comes into view, over the title's name, and goes if it won't load, leaving the name. | A lazy image loads only once it's in the page, so it goes in at once, over the name. |
+
+## Plasma Remote's icons and privacy policy (28 November 2026, M9)
+
+| Topic | Choice | Why |
+|---|---|---|
+| The Android icon | An adaptive icon: Plasma's mark (`docs/images/plasma-mark-white.svg`) as a vector, 48 dp across in the 108 dp layer, over the graphite tile of the website and the web page (`#232327` to `#18181B`), with the same mark as the themed (monochrome) layer. The old 192-pixel PNG is gone. | Every phone the app runs on (Android 8.0 and up) uses adaptive icons; a full-bleed PNG got cropped and Lint warned about it. |
+| The iPhone icon | One 1024-pixel `AppIcon` in `Assets.xcassets`: the same tile and mark, square and opaque, as iOS rounds the corners itself. | Xcode makes every size from it; TestFlight and the App Store need it. |
+| The privacy policy | `plasma.gureet.ca/remote-privacy.html`, linked from the website's footer and the app's Settings › About: what stays on the phone, what goes to the TV, that nothing else is collected or contacted, the camera and the local network, and how to forget a TV. It covers the apps only. | Brief 6.11: the App Store asks for a privacy policy's address. It's in the repository, so a change to it is public. |
