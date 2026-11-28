@@ -1795,3 +1795,12 @@ docs/testing.md
 | Tap and hold | A tap opens the title's page on the TV. A finger held for the phone's long-press time plays it (a firmer haptic tap), and lifting it afterwards does nothing more. A screen reader's activation opens, and its long-press action, "Play", plays. A row the list scrolls past does neither. | #230's settled choices: a mistaken tap costs nothing. |
 | Posters | From the TV, pinned as logos are, kept as the TV sent them (small JPEGs) for the last 400 titles while the app runs, and drawn as each row shows. A title without one, or one that won't load, shows its name on the plate, as the TV does (#228). | Keeping the bytes rather than pictures keeps the app's memory small. |
 | The demo | Twelve movies and twelve series with the boards' posters (appendix A), made 180 pixels wide, in a few categories, with Continue Watching part watched and a locked Late Night. | For the stores' screenshots and App Review. |
+
+## The phone remote page's Movies and Series tabs (28 November 2026, #230)
+
+| Topic | Choice | Why |
+|---|---|---|
+| The tabs | Movies and Series between Channels and Type, shown while `state` says the profile has them, as in the apps, sharing one section that shows the kind picked. | #230: the web page and both apps at once. |
+| A tab | As the apps' and the page's own Channels: a search over the category shown, the categories as chips (a locked one with a lock, saying it opens on the TV with its PIN), "Thrillers · 250", rows with the poster, name, year, rating and how far in. Titles come 200 at a time. | #230. |
+| Tap and hold | A tap (or a key, or a screen reader) opens the title's page on the TV. A finger held for half a second plays it, with a buzz on Android, and the tap that would follow is dropped; the browser's long-press menu is turned off on rows. A row scrolled past does neither: scrolling cancels the hold. | #230's settled choices. Half a second is the browsers' own long-press time. |
+| Posters | Each row's poster loads as the row comes into view, over the title's name, and goes if it won't load, leaving the name. | A lazy image loads only once it's in the page, so it goes in at once, over the name. |
