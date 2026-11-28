@@ -9,6 +9,7 @@ import ca.gureet.plasma.remote.app.tv.PhoneApp
 import ca.gureet.plasma.remote.app.tv.TvDialer
 import ca.gureet.plasma.remote.app.tv.TvSocket
 import ca.gureet.plasma.remote.app.tv.pair
+import ca.gureet.plasma.remote.protocol.RemoteCategory
 import ca.gureet.plasma.remote.protocol.RemoteChannel
 import ca.gureet.plasma.remote.protocol.RemoteKey
 import ca.gureet.plasma.remote.protocol.RemoteList
@@ -16,6 +17,8 @@ import ca.gureet.plasma.remote.protocol.RemoteLists
 import ca.gureet.plasma.remote.protocol.RemotePlaying
 import ca.gureet.plasma.remote.protocol.RemoteProtocol
 import ca.gureet.plasma.remote.protocol.RemoteState
+import ca.gureet.plasma.remote.protocol.RemoteTitle
+import ca.gureet.plasma.remote.protocol.RemoteTitles
 import ca.gureet.plasma.remote.protocol.TvMessages
 import kotlin.test.Test
 import kotlin.test.assertEquals
@@ -72,6 +75,11 @@ class NetworkTvTest {
             }
             "auth" -> answer(if (fields["token"] == "t0k3n") TvMessages.state(playing) else TvMessages.error(RemoteProtocol.Reasons.AUTH))
             "ping" -> answer(TvMessages.pong())
+            "titles" -> answer(
+                TvMessages.titles(
+                    RemoteTitles(fields["kind"].orEmpty(), listOf(RemoteCategory("continue", "Continue Watching", 1)), "continue", 0, listOf(RemoteTitle("m:1", "The Last Lighthouse", 2025, progress = 0.42f, poster = true))),
+                ),
+            )
             "lists" -> answer(TvMessages.lists(RemoteLists(listOf(RemoteList("favorites", "Favorites", 1, true)), "favorites", 0, listOf(RemoteChannel("tv:105", "1", "Arena Sports 1")))))
         }
     }
@@ -121,6 +129,21 @@ class NetworkTvTest {
         val lists = tv.lists(null, 0)
         assertEquals("favorites", lists?.list)
         assertEquals("Arena Sports 1", lists?.channels?.single()?.name)
+    }
+
+    @Test fun moviesAndSeriesComeBackAsAskedAndATitleOpens() = runTest {
+        val socket = plasma()
+        val tv = NetworkTv("Living Room TV", "t0k3n", app, TvDialer { socket })
+        tv.keepConnected(backgroundScope)
+        runCurrent()
+
+        val titles = tv.titles(RemoteTitles.SERIES, null, 0)
+        assertEquals("series", titles?.kind)
+        assertEquals(0.42f, titles?.titles?.single()?.progress)
+
+        tv.open(RemoteTitles.MOVIES, "m:1", play = true)
+        runCurrent()
+        assertEquals("open" to mapOf("kind" to "movies", "id" to "m:1", "play" to "true"), RemoteProtocol.parse(socket.sent.last()))
     }
 
     @Test fun aForgottenPhoneStopsAndAsksToPairAgain() = runTest {

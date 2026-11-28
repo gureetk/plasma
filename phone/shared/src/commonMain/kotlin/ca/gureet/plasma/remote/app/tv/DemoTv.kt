@@ -2,6 +2,7 @@
 package ca.gureet.plasma.remote.app.tv
 
 import ca.gureet.plasma.remote.app.resources.Res
+import ca.gureet.plasma.remote.protocol.RemoteCategory
 import ca.gureet.plasma.remote.protocol.RemoteChannel
 import ca.gureet.plasma.remote.protocol.RemoteField
 import ca.gureet.plasma.remote.protocol.RemoteKey
@@ -9,10 +10,12 @@ import ca.gureet.plasma.remote.protocol.RemoteList
 import ca.gureet.plasma.remote.protocol.RemoteLists
 import ca.gureet.plasma.remote.protocol.RemotePlaying
 import ca.gureet.plasma.remote.protocol.RemoteState
+import ca.gureet.plasma.remote.protocol.RemoteTitle
+import ca.gureet.plasma.remote.protocol.RemoteTitles
+import kotlin.time.TimeSource
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
-import kotlin.time.TimeSource
 import org.jetbrains.compose.resources.ExperimentalResourceApi
 
 /**
@@ -61,6 +64,63 @@ class DemoTv(
     /** The movies Search finds besides the channels' programs (appendix A's posters). */
     private val movies = listOf("The Last Lighthouse", "Polar Night", "Night Harbour", "Northern Lights", "City of Glass", "The Long Crossing")
 
+    private class DemoTitle(val id: String, val name: String, val year: Int, val rating: Float, val poster: String)
+
+    private class DemoCategory(val id: String, val name: String, val ids: List<String>, val progress: Map<String, Float> = emptyMap(), val lockedCount: Int? = null) {
+        val category get() = RemoteCategory(id, name, lockedCount ?: ids.size, locked = lockedCount != null)
+    }
+
+    /** Movies and series with the boards' posters (appendix A), and a few categories of each (#230). */
+    private val demoMovies = listOf(
+        DemoTitle("neon", "Neon Tide", 2026, 7.1f, "poster-neon"),
+        DemoTitle("lighthouse", "The Last Lighthouse", 2025, 7.8f, "poster-lighthouse"),
+        DemoTitle("orchard", "Glass Orchard", 2026, 7.3f, "poster-orchard"),
+        DemoTitle("ember", "Ember Road", 2026, 6.6f, "poster-ember"),
+        DemoTitle("loworbit", "Low Orbit", 2025, 7.0f, "poster-loworbit"),
+        DemoTitle("salt", "Saltwater Hymn", 2025, 7.5f, "poster-salt"),
+        DemoTitle("carto", "The Cartographer", 2024, 7.2f, "poster-carto"),
+        DemoTitle("velvet", "Velvet Hour", 2025, 6.8f, "poster-velvet"),
+        DemoTitle("polar", "Polar Night", 2025, 7.4f, "poster-polar"),
+        DemoTitle("paper", "Paper Kingdoms", 2025, 6.9f, "poster-paper"),
+        DemoTitle("nightdesk", "The Night Desk", 2025, 7.6f, "poster-nightdesk"),
+        DemoTitle("kite", "Kite Season", 2024, 6.7f, "poster-kite"),
+    )
+
+    private val movieCategories = listOf(
+        DemoCategory("recent", "Recently Added", demoMovies.map { it.id }),
+        DemoCategory("continue", "Continue Watching", listOf("lighthouse", "polar", "carto"), mapOf("lighthouse" to 0.42f, "polar" to 0.71f, "carto" to 0.18f)),
+        DemoCategory("mylist", "My List", listOf("orchard", "nightdesk", "kite", "velvet")),
+        DemoCategory("drama", "Drama", listOf("orchard", "salt", "lighthouse")),
+        DemoCategory("thriller", "Thriller", listOf("neon", "polar", "nightdesk")),
+        DemoCategory("scifi", "Sci-Fi", listOf("loworbit", "paper")),
+        DemoCategory("family", "Family", listOf("kite")),
+        DemoCategory("late", "Late Night", emptyList(), lockedCount = 40),
+    )
+
+    private val demoSeries = listOf(
+        DemoTitle("atlas", "Atlas Station", 2024, 8.1f, "series-atlas"),
+        DemoTitle("kingsway", "Kingsway", 2025, 7.7f, "series-kingsway"),
+        DemoTitle("harbour", "Harbour Lights", 2023, 7.4f, "series-harbour"),
+        DemoTitle("panel", "The Panel", 2026, 7.0f, "series-panel"),
+        DemoTitle("northof", "North of Nowhere", 2022, 7.9f, "series-northof"),
+        DemoTitle("lastorders", "Last Orders", 2024, 7.2f, "series-lastorders"),
+        DemoTitle("nightstint", "Night Stint", 2025, 7.6f, "series-nightstint"),
+        DemoTitle("smallclaims", "Small Claims", 2023, 6.9f, "series-smallclaims"),
+        DemoTitle("backstage", "Backstage", 2024, 7.1f, "series-backstage"),
+        DemoTitle("heatindex", "Heat Index", 2025, 7.3f, "series-heatindex"),
+        DemoTitle("quiethours", "Quiet Hours", 2021, 7.8f, "series-quiethours"),
+        DemoTitle("tumble", "Tumble Town", 2022, 6.8f, "series-tumble"),
+    )
+
+    private val seriesCategories = listOf(
+        DemoCategory("new", "New Episodes", listOf("kingsway", "heatindex", "panel", "atlas")),
+        DemoCategory("continue", "Continue Watching", listOf("atlas", "nightstint"), mapOf("atlas" to 0.69f, "nightstint" to 0.35f)),
+        DemoCategory("mylist", "My List", listOf("harbour", "northof", "lastorders")),
+        DemoCategory("drama", "Drama", listOf("harbour", "northof", "nightstint", "quiethours")),
+        DemoCategory("comedy", "Comedy", listOf("lastorders", "smallclaims", "backstage", "tumble")),
+        DemoCategory("crime", "Crime", listOf("kingsway", "panel", "heatindex")),
+    )
+
     /** Plasma's Search, with its field focused: the Type tab shows it as the board does. */
     private val search = RemoteField("Search", "", kind = RemoteField.SEARCH)
 
@@ -90,6 +150,8 @@ class DemoTv(
             playing = RemotePlaying(channel.id, channel.number.toString(), channel.name, channel.now, live, picture, behindLive, paused),
             keys = mapOf("red" to "Favorite", "green" to "Catch-up", "yellow" to "Sort", "blue" to "Multiview"),
             field = field,
+            movies = true,
+            series = true,
         )
     }
 
@@ -163,6 +225,25 @@ class DemoTv(
             RemoteChannel(channel.id, listNumber, channel.name, channel.now, progress, playing = channel.id == _state.value.playing?.channelId)
         }
         return RemoteLists(lists.map { it.list }, shown.list.id, from, rows.drop(from))
+    }
+
+    /** A kind's categories, and one's titles; a locked one's stay on the TV, as on a real one. */
+    override suspend fun titles(kind: String, categoryId: String?, from: Int): RemoteTitles {
+        val series = kind == RemoteTitles.SERIES
+        val categories = if (series) seriesCategories else movieCategories
+        val all = if (series) demoSeries else demoMovies
+        val shown = categories.firstOrNull { it.id == categoryId } ?: categories.first()
+        val rows = shown.ids.map { id ->
+            val title = all.first { it.id == id }
+            RemoteTitle(title.id, title.name, title.year, title.rating, shown.progress[id], poster = true)
+        }
+        return RemoteTitles(kind, categories.map { it.category }, shown.id, from, rows.drop(from))
+    }
+
+    @OptIn(ExperimentalResourceApi::class)
+    override suspend fun poster(kind: String, id: String): ByteArray? {
+        val title = (if (kind == RemoteTitles.SERIES) demoSeries else demoMovies).firstOrNull { it.id == id } ?: return null
+        return runCatching { Res.readBytes("files/demo/${title.poster}.jpg") }.getOrNull()
     }
 
     private companion object {
