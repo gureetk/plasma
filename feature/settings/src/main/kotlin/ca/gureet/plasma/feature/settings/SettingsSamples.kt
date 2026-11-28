@@ -163,7 +163,7 @@ enum class HomeAction {
 
 /** A phone paired as a remote (brief 4.33): connected now, or when it was last used. */
 @Immutable
-data class PairedPhone(val name: String, val connected: Boolean, val lastUsed: ZonedDateTime, val id: String = name)
+data class PairedPhone(val name: String, val connected: Boolean, val lastUsed: ZonedDateTime, val id: String = name, val app: Boolean = false)
 
 /** The world of Settings on the boards (appendix A): three sources, a USB drive, a NAS and a Jellyfin server. */
 @Immutable
@@ -507,7 +507,7 @@ object SettingsSamples {
         phonePort = 8484,
         phoneCode = "7KQ 4MZ",
         pairedPhones = listOf(
-            PairedPhone("Maya’s iPhone", connected = true, lastUsed = Sample.at(20, 41)),
+            PairedPhone("Maya’s iPhone", connected = true, lastUsed = Sample.at(20, 41), app = true),
             PairedPhone("Daniel’s Pixel", connected = false, lastUsed = Sample.at(21, 12, -1)),
         ),
         favoriteExamples = Sample.favorites.take(3).map { Triple(it.number, it.name, it.logo) },

@@ -212,6 +212,12 @@ internal fun SectionLabel(text: String, metrics: RowMetrics, first: Boolean) {
     )
 }
 
+/** A line under a section's rows (20 px, `text3`), lined up with the rows' names. */
+@Composable
+internal fun SectionNote(text: String) {
+    PlasmaText(text, plasmaStyle(20f, 400), Modifier.padding(start = 22.px, end = 22.px, top = 16.px), color = PlasmaColors.Text3)
+}
+
 /**
  * A section's label while one of its rows moves: "Moving New in Series · Press OK to drop it here",
  * as Live TV's list heading says it.

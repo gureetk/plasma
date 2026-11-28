@@ -156,6 +156,8 @@ class RemoteTlsTest {
         while (keys.size < 2 && System.currentTimeMillis() < deadline) Thread.sleep(20)
         assertEquals(listOf("ok↓", "ok↑"), keys)
         assertEquals("Maya’s Pixel", store.phones.values.single().name)
+        // The apps' listener: the TV's Phone Remote page says "App" for it (brief 4.33).
+        assertTrue(store.phones.values.single().app)
     }
 
     @Test fun anAppPinnedToAnotherCertificateIsRefused() {

@@ -280,7 +280,8 @@ private fun setupRow(
 
 /**
  * Settings › Remote & Buttons › Phone Remote (brief 4.33 and 5.21): the QR code and address a
- * phone opens, and the phones paired already, which OK renames or forgets.
+ * phone opens, and the phones paired already, each saying how it connects (the Plasma Remote app
+ * or a browser), which OK renames or forgets. Under them, a line about the apps (5.22).
  */
 @Composable
 internal fun phoneRemotePage(values: SettingsValues, facts: SettingsFacts, actions: SettingsActions = SettingsActions()): PageSpec {
@@ -325,10 +326,11 @@ internal fun phoneRemotePage(values: SettingsValues, facts: SettingsFacts, actio
             else -> stringResource(R.string.phone_last_used, lastUsed)
         }
         val renameLabel = stringResource(R.string.rename)
+        val via = stringResource(if (phone.app) R.string.phone_via_app else R.string.phone_via_browser)
         SettingItem(
             id = "phone-${phone.id}",
             label = phone.name,
-            value = if (phone.connected) stringResource(R.string.phone_connected) else lastUsed,
+            value = listOf(if (phone.connected) stringResource(R.string.phone_connected) else lastUsed, via).joinToString(" · "),
             status = if (phone.connected) Tone.Ok else null,
             chevron = false,
             action = SettingAction.Menu(
@@ -355,8 +357,8 @@ internal fun phoneRemotePage(values: SettingsValues, facts: SettingsFacts, actio
             detail = SettingDetail(
                 icon = PlasmaIcons.Phone,
                 title = phone.name,
-                subline = if (phone.connected) stringResource(R.string.phone_connected_now) else lastUsedLine,
-                text = stringResource(R.string.phone_text),
+                subline = listOf(if (phone.connected) stringResource(R.string.phone_connected_now) else lastUsedLine, via).joinToString(" · "),
+                text = stringResource(if (phone.app) R.string.phone_text_app else R.string.phone_text),
             ),
         )
     }
@@ -368,7 +370,7 @@ internal fun phoneRemotePage(values: SettingsValues, facts: SettingsFacts, actio
                 null,
                 listOf(SettingItem(id = "phone-remote", label = stringResource(R.string.phone_remote), value = on.value, action = on.action, detail = scan)),
             ),
-            SettingSection(stringResource(R.string.section_paired_phones), phones),
+            SettingSection(stringResource(R.string.section_paired_phones), phones, note = stringResource(R.string.phone_app_note)),
         ),
     )
 }

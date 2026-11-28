@@ -910,7 +910,7 @@ fun PlasmaApp() {
                                     phoneAvailable = phoneAvailable,
                                     phoneStarting = phoneInvite == null,
                                     pairedPhones = phones.sortedByDescending { it.lastSeen }.map { phone ->
-                                        PairedPhone(phone.name, phone.id in phonesConnected, Instant.ofEpochMilli(phone.lastSeen).atZone(clock.zone), phone.id)
+                                        PairedPhone(phone.name, phone.id in phonesConnected, Instant.ofEpochMilli(phone.lastSeen).atZone(clock.zone), phone.id, app = phone.app)
                                     },
                                     homeRowOrder = rowOrder,
                                 )
