@@ -104,5 +104,13 @@ jobs:
         run: |
           cd phone/iosApp
           xcodebuild -project PlasmaRemote.xcodeproj -scheme PlasmaRemote -configuration Debug \
-            -destination 'generic/platform=iOS Simulator' CODE_SIGNING_ALLOWED=NO build | tail -40
+            -destination 'generic/platform=iOS Simulator' -derivedDataPath "$RUNNER_TEMP/dd" CODE_SIGNING_ALLOWED=NO build | tail -40
           test "${PIPESTATUS[0]}" -eq 0
+
+      # As for Android: the shared module's words and fonts have to be in the app.
+      - name: Check the app has its resources
+        run: |
+          app=$(find "$RUNNER_TEMP/dd/Build/Products" -name PlasmaRemote.app -type d | head -1)
+          echo "$app"
+          find "$app" -name 'strings.commonMain.cvr' | grep -q . || { echo "::error title=Resources::$app has no strings."; find "$app" -maxdepth 3 | head -40; exit 1; }
+          find "$app" -path '*font*' -name '*.ttf' | grep -q . || { echo "::error title=Resources::$app has no fonts."; exit 1; }
