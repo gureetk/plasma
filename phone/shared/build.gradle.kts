@@ -23,6 +23,9 @@ kotlin {
         minSdk = 26
         compilerOptions { jvmTarget.set(JvmTarget.JVM_17) }
         withHostTest {}
+        // The library's Compose resources (words, fonts, the demo's pictures) go into the app's
+        // assets only with Android resources on: without them the app has no words to show.
+        androidResources { enable = true }
     }
 
     // Only for the tests that draw the screens to pictures, here and in CI: there's no desktop app.
