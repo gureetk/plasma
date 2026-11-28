@@ -1882,6 +1882,7 @@ The debug build of the Android app, paired with a TV whose source has movies and
 - [ ] A tap on a series opens its page with its seasons. A hold plays the episode Resume would.
 - [ ] Continue Watching shows how far in each title is.
 - [ ] Switching profiles on the TV: both tabs follow the profile watching.
+
 ## The phone remote page's Movies and Series tabs (28 November, #230)
 
 On a phone's browser, paired with a TV whose source has movies and series:
