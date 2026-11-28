@@ -2176,11 +2176,14 @@ People who'd rather install an app can use the **Plasma Remote apps** for Androi
   | phone → TV | `tune` | a channel id from the lists |
   | TV → phone | `state` | whether Plasma is in front; what's playing, with the times for the timeline; the colour-key labels for the current screen (the same mapping as the TV's footer hints); the focused text field's label and text, or none |
   | TV → phone | `lists` | the profile's lists and channels with their list numbers (5.2), on request, 200 channels at a time |
+  | phone → TV | `titles` | Movies or Series, and a category and where in it to start (#230) |
+  | TV → phone | `titles` | Movies' or Series' categories as the TV shows them to the profile watching, locked ones marked, and a category's titles (name, year, rating, how far in), 200 at a time (#230) |
+  | phone → TV | `open` | a movie or series to open on the TV, or with `play` to play from where it was left (#230) |
   | both ways | `ping`, `pong` | every 15 s; the phone reconnects after two missed |
 
 - **The TV's id and name:** the id is a random UUID made when Plasma is installed, so the apps can recognise the TV when its address changes. The name is Android's device name (`Settings.Global.DEVICE_NAME`, such as "Living Room TV").
 - **Versions:** the protocol version is a whole number. The TV accepts its own version and the one before. An app newer than the TV shows "Update Plasma on Living Room TV to use this version of the app"; an older app asks to be updated. The web page always matches, because the TV serves it.
-- **Logos:** phones load channel logos from the TV (`/remote/logo/<channel id>`, cached on the TV), never from the provider's URLs.
+- **Logos:** phones load channel logos from the TV (`/remote/logo/<channel id>`, cached on the TV), never from the provider's URLs. Posters likewise (`/remote/poster/<movies or series>/<id>`), made 180 pixels wide by the TV (#230). `state` also says whether the profile has movies and series, so a phone shows a tab only for what there is.
 - **Keys reach Plasma** as if from the remote: they go into Plasma's own key handling, so number entry, the zap banner and every shortcut behave the same. This needs no permission, because it's Plasma's own window.
 
 **The three tabs** (4.33)

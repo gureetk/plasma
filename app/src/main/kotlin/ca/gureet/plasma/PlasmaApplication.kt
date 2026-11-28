@@ -2017,6 +2017,19 @@ class AppGraph(private val context: Context) {
         _tuneFromPhone.compareAndSet(tune, null)
     }
 
+    private val _openFromPhone = MutableStateFlow<PhoneOpen?>(null)
+
+    /** A title tapped on a phone's Movies or Series tab (#230): its page opens, until it has. */
+    val openFromPhone: StateFlow<PhoneOpen?> = _openFromPhone.asStateFlow()
+
+    fun openFromPhone(series: Boolean, id: String, play: Boolean) {
+        _openFromPhone.value = PhoneOpen(series, id, play, SystemClock.elapsedRealtime())
+    }
+
+    fun openedFromPhone(open: PhoneOpen) {
+        _openFromPhone.compareAndSet(open, null)
+    }
+
     init {
         // On by default; off, phones can't reach the TV at all (5.21).
         scope.launch {

@@ -27,7 +27,7 @@ object RemoteProtocol {
     const val VERSION = 1
 
     /** What the TV can do for a phone, listed in `welcome`. */
-    val FEATURES: List<String> = listOf("keys", "digits", "text", "tune", "lists", "live", "logos")
+    val FEATURES: List<String> = listOf("keys", "digits", "text", "tune", "lists", "live", "logos", "titles")
 
     /** Whether a TV on [VERSION] speaks with a phone on [version]. */
     fun speaks(version: Int): Boolean = version == VERSION || version == VERSION - 1
@@ -93,6 +93,9 @@ object TvMessages {
 
     /** The lists, and some of one's channels, as a phone asked. */
     fun lists(lists: RemoteLists): String = RemoteProtocol.tagged("lists", RemoteProtocol.json.encodeToJsonElement(lists).jsonObject)
+
+    /** Movies' or Series' categories, and some of one's titles (#230). */
+    fun titles(titles: RemoteTitles): String = RemoteProtocol.tagged("titles", RemoteProtocol.json.encodeToJsonElement(titles).jsonObject)
 }
 
 /** What a phone sends the TV. */
@@ -142,6 +145,26 @@ object PhoneMessages {
 
     /** Go Live: back to the live edge from the rewind buffer. */
     fun live(): String = RemoteProtocol.message("live")
+
+    /**
+     * Movies' or Series' categories ([kind] is [RemoteTitles.MOVIES] or [RemoteTitles.SERIES]),
+     * and [from] onward of [categoryId]'s titles; null for the first category with titles (#230).
+     */
+    fun titles(kind: String, categoryId: String? = null, from: Int = 0): String = RemoteProtocol.message("titles") {
+        put("kind", kind)
+        if (categoryId != null) put("category", categoryId)
+        put("from", from)
+    }
+
+    /**
+     * A title tapped on the Movies or Series tab: its page opens on the TV, with Play or Resume
+     * ready; with [play] (a long press), it plays at once, from where it was left (#230).
+     */
+    fun open(kind: String, id: String, play: Boolean = false): String = RemoteProtocol.message("open") {
+        put("kind", kind)
+        put("id", id)
+        if (play) put("play", true)
+    }
 
     /** Every 15 s; two unanswered and the phone connects again. */
     fun ping(): String = RemoteProtocol.message("ping")
@@ -193,7 +216,40 @@ data class RemoteState(
     val playing: RemotePlaying? = null,
     val keys: Map<String, String> = emptyMap(),
     val field: RemoteField? = null,
+    /** Whether the profile watching has movies, and series, to show: a phone shows a tab for each that it has (#230). */
+    val movies: Boolean = false,
+    val series: Boolean = false,
 )
+
+/**
+ * Movies' or Series' categories as the TV shows them to the profile watching (#230), in its order
+ * and with its counts, and [from] onward of [category]'s titles, 200 at a time.
+ */
+@Serializable
+data class RemoteTitles(val kind: String, val categories: List<RemoteCategory>, val category: String, val from: Int, val titles: List<RemoteTitle>) {
+    companion object {
+        const val MOVIES = "movies"
+        const val SERIES = "series"
+
+        /** A title's poster: this, the kind, "/" and the title's id, percent-encoded, as the TV fetches it and sizes it for a row. */
+        const val POSTER_PATH = "/remote/poster/"
+    }
+}
+
+/**
+ * A category: Recently Added (or New Episodes), Continue Watching, My List, or one of the
+ * sources' or the user's own, with how many titles it has. A [locked] one (the parental PIN's)
+ * opens only on the TV, and its titles aren't sent.
+ */
+@Serializable
+data class RemoteCategory(val id: String, val name: String, val count: Int, val locked: Boolean = false)
+
+/**
+ * A movie or series as its poster on the TV: its name, year and rating, how far in it is (0–1, on
+ * Continue Watching), and whether it has a poster to fetch from [RemoteTitles]' poster path.
+ */
+@Serializable
+data class RemoteTitle(val id: String, val name: String, val year: Int? = null, val rating: Float? = null, val progress: Float? = null, val poster: Boolean = false)
 
 /**
  * What plays: "105 · Arena Sports 1" and the program, with the timeline: how far into the program

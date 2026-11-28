@@ -70,6 +70,8 @@ class RemoteTlsTest {
         }
 
         override fun logo(channelId: String): Pair<ByteArray, String>? = if (channelId == "home:108") byteArrayOf(1, 2, 3) to "image/png" else null
+
+        override fun poster(kind: String, id: String): Pair<ByteArray, String>? = if (id == "m:1") byteArrayOf(4, 5, 6) to "image/jpeg" else null
     }
 
     private val page = object : RemotePage {
@@ -178,6 +180,7 @@ class RemoteTlsTest {
         val client = pinnedTo(server.invited.fingerprint!!)
 
         client.newCall(Request.Builder().url("https://${server.secureHost}/remote/logo/home%3A108").build()).execute().use { assertEquals("image/png", it.header("Content-Type")) }
+        client.newCall(Request.Builder().url("https://${server.secureHost}/remote/poster/movies/m%3A1").build()).execute().use { assertEquals("image/jpeg", it.header("Content-Type")) }
         client.newCall(Request.Builder().url("https://${server.secureHost}/remote").build()).execute().use { assertEquals(404, it.code) }
         client.newCall(Request.Builder().url("https://${server.secureHost}/").build()).execute().use { assertEquals(404, it.code) }
         client.newCall(Request.Builder().url("https://${server.secureHost}${RemoteAdvert.PATH}").build()).execute().use { assertEquals(server.advert, RemoteAdvert.fromJson(it.body.string())) }

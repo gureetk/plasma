@@ -21,7 +21,8 @@ import kotlinx.serialization.Serializable
 
 @Serializable data object SeriesRoute
 
-@Serializable data class SeriesDetailRoute(val id: String)
+/** A series' page; with [play], from a phone's long press (#230), it plays what Resume or Play would, once its episodes are in. */
+@Serializable data class SeriesDetailRoute(val id: String, val play: Boolean = false)
 
 /** The page of a movie or series found by Search, whose id is its kind and its own id (`movie:home:7101`). */
 fun titleRoute(result: TitleResult): Any {

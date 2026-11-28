@@ -12,6 +12,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.produceState
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalResources
@@ -37,6 +38,7 @@ import ca.gureet.plasma.feature.vod.SeasonItem
 import ca.gureet.plasma.feature.vod.SeriesDetailActions
 import ca.gureet.plasma.feature.vod.SeriesDetailScreen
 import ca.gureet.plasma.feature.vod.SeriesDetailUiState
+import ca.gureet.plasma.feature.vod.upNext
 import ca.gureet.plasma.player.EngineId
 import java.time.Duration
 import java.util.Locale
@@ -346,7 +348,8 @@ fun LiveMovieDetail(graph: AppGraph, id: String, actions: MovieDetailActions, go
 /**
  * A series' page on a source (board 16): the catalog's at once, then its episodes, read as it
  * opens (after a day, or when the catalog sees it change). My List, what's watched and the
- * trailer are handled here; an episode plays by [onEpisode].
+ * trailer are handled here; an episode plays by [onEpisode]. With [playNow] (a phone's long press,
+ * #230), the episode Resume or Play would start plays once the episodes are in, once.
  */
 @Composable
 fun LiveSeriesDetail(
@@ -355,6 +358,7 @@ fun LiveSeriesDetail(
     actions: SeriesDetailActions,
     onEpisode: (episodeId: String, fromStart: Boolean) -> Unit,
     gone: @Composable () -> Unit,
+    playNow: Boolean = false,
 ) {
     val context = LocalContext.current
     val words = rememberVodWords()
@@ -367,6 +371,13 @@ fun LiveSeriesDetail(
     if (read == null) return
     if (page == null) return gone()
     val screen = remember(page, words, trailers, failed) { seriesPageState(page, words, trailers, failed) }
+    var played by rememberSaveable(id) { mutableStateOf(false) }
+    LaunchedEffect(screen, playNow) {
+        if (!playNow || played) return@LaunchedEffect
+        val episode = upNext(screen.state.seasons)?.let(screen.episodeIds::get) ?: return@LaunchedEffect
+        played = true
+        onEpisode(episode, false)
+    }
     SeriesDetailScreen(
         state = screen.state,
         actions = remember(actions, screen, page.trailer) {

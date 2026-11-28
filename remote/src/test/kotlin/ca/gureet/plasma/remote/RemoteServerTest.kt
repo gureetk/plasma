@@ -1,12 +1,26 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 package ca.gureet.plasma.remote
 
+import ca.gureet.plasma.remote.protocol.PhoneMessages
+import ca.gureet.plasma.remote.protocol.RemoteCategory
 import ca.gureet.plasma.remote.protocol.RemoteChannel
 import ca.gureet.plasma.remote.protocol.RemoteField
 import ca.gureet.plasma.remote.protocol.RemoteKey
 import ca.gureet.plasma.remote.protocol.RemoteList
 import ca.gureet.plasma.remote.protocol.RemoteLists
+import ca.gureet.plasma.remote.protocol.RemoteProtocol
 import ca.gureet.plasma.remote.protocol.RemoteState
+import ca.gureet.plasma.remote.protocol.RemoteTitle
+import ca.gureet.plasma.remote.protocol.RemoteTitles
+import java.net.InetAddress
+import java.net.Socket
+import java.util.concurrent.CopyOnWriteArrayList
+import java.util.concurrent.LinkedBlockingQueue
+import java.util.concurrent.TimeUnit
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.cancel
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.jsonObject
@@ -22,15 +36,6 @@ import org.junit.Assert.assertNotEquals
 import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
-import java.net.InetAddress
-import java.net.Socket
-import java.util.concurrent.CopyOnWriteArrayList
-import java.util.concurrent.LinkedBlockingQueue
-import java.util.concurrent.TimeUnit
-import kotlinx.coroutines.CoroutineScope
-import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.SupervisorJob
-import kotlinx.coroutines.cancel
 
 /** The phone remote (brief 5.21): its page, pairing, and what a paired phone can do, against the server here. */
 class RemoteServerTest {
@@ -41,6 +46,7 @@ class RemoteServerTest {
     private val tuned = CopyOnWriteArrayList<String>()
     private val typed = CopyOnWriteArrayList<String>()
     private val wentLive = CopyOnWriteArrayList<Unit>()
+    private val opened = CopyOnWriteArrayList<String>()
     private val pairedPhones = CopyOnWriteArrayList<PairedPhone>()
 
     /** The paired phones, kept as the TV would, but in memory. */
@@ -87,6 +93,20 @@ class RemoteServerTest {
         )
 
         override fun logo(channelId: String): Pair<ByteArray, String>? = if (channelId == "home:108") byteArrayOf(1, 2, 3) to "image/png" else null
+
+        override fun titles(kind: String, categoryId: String?, from: Int): RemoteTitles = RemoteTitles(
+            kind = kind,
+            categories = listOf(RemoteCategory("continue", "Continue Watching", 1), RemoteCategory("m:late", "Late Night", 40, locked = true)),
+            category = categoryId ?: "continue",
+            from = from,
+            titles = listOf(RemoteTitle("m:1", "The Lighthouse Keeper", 2025, 7.4f, progress = 0.3f, poster = true)),
+        )
+
+        override fun open(kind: String, id: String, play: Boolean) {
+            opened += "$kind $id" + if (play) " ▶" else ""
+        }
+
+        override fun poster(kind: String, id: String): Pair<ByteArray, String>? = if (kind == "movies" && id == "m:1") byteArrayOf(4, 5, 6) to "image/jpeg" else null
     }
 
     private val page = object : RemotePage {
@@ -160,6 +180,9 @@ class RemoteServerTest {
         // The page sends the channel's id percent-encoded.
         http.newCall(Request.Builder().url("http://${server.host}/remote/logo/home%3A108").build()).execute().use { assertEquals("image/png", it.header("Content-Type")) }
         http.newCall(Request.Builder().url("http://${server.host}/remote/logo/home:999").build()).execute().use { assertEquals(404, it.code) }
+        http.newCall(Request.Builder().url("http://${server.host}/remote/poster/movies/m%3A1").build()).execute().use { assertEquals("image/jpeg", it.header("Content-Type")) }
+        http.newCall(Request.Builder().url("http://${server.host}/remote/poster/series/m%3A1").build()).execute().use { assertEquals(404, it.code) }
+        http.newCall(Request.Builder().url("http://${server.host}/remote/poster/movies").build()).execute().use { assertEquals(404, it.code) }
         http.newCall(Request.Builder().url("http://${server.host}/remote/remote.js").build()).execute().use { assertEquals("// script", it.body.string()) }
         http.newCall(Request.Builder().url("http://${server.host}/remote/../secrets").build()).execute().use { assertEquals(404, it.code) }
     }
@@ -223,6 +246,28 @@ class RemoteServerTest {
         assertEquals(1, wentLive.size)
         assertEquals(listOf("night", "⏎"), typed)
         assertEquals(setOf(kept.id), server.connected.value)
+    }
+
+    @Test fun aPairedPhoneAsksForMoviesAndSeriesAndOpensThem() {
+        val server = server()
+        val phone = Phone(server)
+        phone.pair(server.invite.value!!.code)
+
+        phone.send(PhoneMessages.titles(RemoteTitles.SERIES, "continue", 0))
+        val titles = RemoteProtocol.json.decodeFromString(RemoteTitles.serializer(), phone.next().toString())
+        assertEquals("series", titles.kind)
+        assertEquals("continue", titles.category)
+        assertEquals(listOf("Continue Watching", "Late Night"), titles.categories.map { it.name })
+        assertEquals(0.3f, titles.titles.single().progress)
+
+        phone.send(PhoneMessages.open(RemoteTitles.MOVIES, "m:1"))
+        phone.send(PhoneMessages.open(RemoteTitles.SERIES, "s:7", play = true))
+        // Another kind is let be.
+        phone.send("""{"t":"open","kind":"music","id":"x"}""")
+        phone.send("""{"t":"titles","kind":"music"}""")
+        phone.send(PhoneMessages.ping())
+        assertEquals("pong", with(phone) { next().type() })
+        assertEquals(listOf("movies m:1", "series s:7 ▶"), opened)
     }
 
     @Test fun aPairedPhoneComesBackWithItsTokenAndForgetLetsItGo() {

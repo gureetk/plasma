@@ -365,6 +365,21 @@ fun PlasmaApp() {
             if (live && SystemClock.elapsedRealtime() - tune.at < PHONE_TUNE_MS) nav.navigate(PlayerRoute(tune.channelId, tune.listId)) { popUpTo(HomeRoute) }
             graph.tunedFromPhone(tune)
         }
+        // A title tapped on a phone's Movies or Series tab (#230): its page, with Play or Resume
+        // ready; long-pressed, playing from where it was left, its page under it for Back.
+        val phoneOpen by graph.openFromPhone.collectAsState()
+        LaunchedEffect(phoneOpen, live) {
+            val open = phoneOpen ?: return@LaunchedEffect
+            if (live && SystemClock.elapsedRealtime() - open.at < PHONE_TUNE_MS) {
+                if (open.series) {
+                    nav.navigate(SeriesDetailRoute(open.id, play = open.play))
+                } else {
+                    nav.navigate(MovieDetailRoute(open.id))
+                    if (open.play) graph.data.vod.movie(open.id)?.let { nav.navigate(VodPlayerRoute(it.name, KIND_MOVIE, it.id, false)) }
+                }
+            }
+            graph.openedFromPhone(open)
+        }
         // Opened by Home or at power-on (brief 5.13): Home Button, or When the TV Turns On, decides.
         val opening by graph.homeOpening.collectAsState()
         LaunchedEffect(opening, live) {
@@ -561,7 +576,8 @@ fun PlasmaApp() {
                     }
                 }
                 screen<SeriesDetailRoute> { entry ->
-                    val id = entry.toRoute<SeriesDetailRoute>().id
+                    val route = entry.toRoute<SeriesDetailRoute>()
+                    val id = route.id
                     val sample = remember(id) { VodSamples.seriesDetail(id) }
                     if (sample == null) {
                         // A series from a source (brief 4.16); its player comes next in M4.
@@ -573,6 +589,7 @@ fun PlasmaApp() {
                             actions = remember(nav) { SeriesDetailActions(onBack = { nav.popBackStack() }) },
                             onEpisode = { episodeId, fromStart -> nav.navigate(VodPlayerRoute(title.orEmpty(), KIND_EPISODE, episodeId, fromStart)) },
                             gone = { PendingScreen(back, backLabel = back, message = stringResource(R.string.series_gone)) },
+                            playNow = route.play,
                         )
                     } else {
                         SeriesDetailScreen(
