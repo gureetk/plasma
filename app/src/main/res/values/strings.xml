@@ -334,6 +334,14 @@
     <string name="remote_page_unreachable_unnamed">Can’t reach the TV. Open Plasma on it.</string>
     <string name="remote_page_search_channels">Search channels</string>
     <string name="remote_page_counts_from_one">Numbers count from 1</string>
+    <!-- The phone remote's Movies and Series tabs (#230). -->
+    <string name="remote_page_movies">Movies</string>
+    <string name="remote_page_series">Series</string>
+    <string name="remote_page_search_movies">Search movies</string>
+    <string name="remote_page_search_series">Search series</string>
+    <!-- %1$s: a category, such as "Late Night". -->
+    <string name="remote_page_category_locked">%1$s is locked. Open it on the TV, with its PIN.</string>
+    <string name="remote_page_nothing_here">Nothing here yet.</string>
     <string name="remote_page_type_title">Type on the TV</string>
     <!-- %1$s is the field, "Search". -->
     <string name="remote_page_typing_into">Typing into %1$s on the TV</string>

@@ -10,6 +10,7 @@
   const PING_MS = 15000;
   const TEXT_DEBOUNCE_MS = 150;
   const PAGE = 200;
+  const HOLD_MS = 500;
   const IOS = /iPhone|iPad|iPod/.test(navigator.userAgent) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
 
   let ws = null;
@@ -29,6 +30,12 @@
   let playingAt = 0;
   let field = null;
   let typing = false;
+  // Movies and Series (#230): which the TV has, the kind shown, its categories and titles.
+  const has = { movies: false, series: false };
+  let kind = null;
+  let categories = [];
+  let category = null;
+  let titles = [];
   let textTimer = 0;
 
   function read(key) { try { return localStorage.getItem(key); } catch (e) { return null; } }
@@ -117,6 +124,9 @@
       case 'lists':
         applyLists(m);
         break;
+      case 'titles':
+        applyTitles(m);
+        break;
       case 'pong':
         missed = 0;
         break;
@@ -166,9 +176,21 @@
   // ---- Tabs ----
   function show(name) {
     tab = name;
-    document.querySelectorAll('.tab').forEach((el) => { el.hidden = el.id !== name; });
+    // Movies and Series share one section, for the kind shown.
+    const section = name === 'movies' || name === 'series' ? 'titles' : name;
+    document.querySelectorAll('.tab').forEach((el) => { el.hidden = el.id !== section; });
     document.querySelectorAll('#tabs button').forEach((el) => el.classList.toggle('on', el.dataset.tab === name));
     if (name === 'type') showField(true);
+    if (section === 'titles' && kind !== name) {
+      kind = name;
+      categories = [];
+      category = null;
+      titles = [];
+      $('title-search').value = '';
+      $('title-search').placeholder = (name === 'series' ? T.searchSeries : T.searchMovies) || '';
+      renderTitles();
+      send({ t: 'titles', kind: kind, from: 0 });
+    }
   }
   document.querySelectorAll('#tabs button').forEach((el) => el.addEventListener('click', () => show(el.dataset.tab)));
 
@@ -244,6 +266,13 @@
     else if (tab === 'type') showField(false);
     const now = playing ? playing.channelId : null;
     if (now !== playingId) { playingId = now; renderRows(); }
+    // A tab for what the TV has: Movies and Series only while the profile has some (#230).
+    has.movies = m.movies === true;
+    has.series = m.series === true;
+    document.querySelectorAll('#tabs button').forEach((el) => {
+      if (el.dataset.tab === 'movies' || el.dataset.tab === 'series') el.hidden = !has[el.dataset.tab];
+    });
+    if ((tab === 'movies' || tab === 'series') && !has[tab]) show('remote');
   }
 
   function showPlaying() {
@@ -420,6 +449,122 @@
     return el;
   }
   $('search').addEventListener('input', renderRows);
+
+  // ---- Movies and Series (#230): a tap opens the title's page on the TV, a hold plays it ----
+  const LOCK = '<svg class="lock" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="5.5" y="11" width="13" height="9" rx="1"/><path d="M8.5 11V8a3.5 3.5 0 0 1 7 0v3"/></svg>';
+
+  function applyTitles(m) {
+    if (m.kind !== kind) return;
+    categories = m.categories || [];
+    if (m.category !== category || m.from === 0) titles = [];
+    category = m.category;
+    titles = titles.concat(m.titles || []);
+    const chips = $('title-chips');
+    chips.textContent = '';
+    categories.forEach((each) => {
+      const chip = document.createElement('button');
+      if (each.locked) chip.insertAdjacentHTML('beforeend', LOCK);
+      chip.appendChild(document.createTextNode(each.name));
+      chip.classList.toggle('on', each.id === category);
+      chip.addEventListener('click', () => {
+        if (each.id === category) return;
+        titles = [];
+        send({ t: 'titles', kind: kind, category: each.id, from: 0 });
+      });
+      chips.appendChild(chip);
+    });
+    const on = chips.querySelector('.on');
+    if (on && m.from === 0) on.scrollIntoView({ block: 'nearest', inline: 'nearest' });
+    renderTitles();
+    // The rest of a long category, 200 at a time.
+    const current = categories.find((each) => each.id === category);
+    if (current && !current.locked && titles.length < current.count && (m.titles || []).length === PAGE) {
+      send({ t: 'titles', kind: kind, category: category, from: titles.length });
+    }
+  }
+
+  function renderTitles() {
+    const current = categories.find((each) => each.id === category);
+    $('title-meta').textContent = current ? current.name + ' · ' + current.count : '';
+    const rows = $('title-rows');
+    rows.textContent = '';
+    if (current && current.locked) return rows.appendChild(note(words(T.categoryLocked, current.name)));
+    if (current && !titles.length) return rows.appendChild(note(T.nothingHere));
+    const query = $('title-search').value.trim().toLowerCase();
+    titles.filter((t) => !query || t.name.toLowerCase().includes(query)).forEach((t) => rows.appendChild(titleRow(t)));
+  }
+
+  function note(text) {
+    const el = document.createElement('div');
+    el.className = 'note';
+    el.textContent = text || '';
+    return el;
+  }
+
+  function titleRow(t) {
+    const el = document.createElement('button');
+    el.className = 'row title';
+    const poster = document.createElement('span');
+    poster.className = 'poster';
+    // The title's name on the plate while its poster comes, and when there's none, as on the TV.
+    const plate = document.createElement('span');
+    plate.textContent = t.name;
+    poster.appendChild(plate);
+    if (t.poster) {
+      // Over the name, loading as the row comes into view; gone if it won't load.
+      const img = document.createElement('img');
+      img.loading = 'lazy';
+      img.alt = '';
+      img.onerror = () => { img.remove(); };
+      img.src = '/remote/poster/' + kind + '/' + encodeURIComponent(t.id);
+      poster.appendChild(img);
+    }
+    const what = document.createElement('span');
+    what.className = 'what';
+    const name = document.createElement('span');
+    name.className = 'name';
+    name.textContent = t.name;
+    what.appendChild(name);
+    const details = [t.year, t.rating ? '★ ' + t.rating.toFixed(1) : null].filter((each) => each).join(' · ');
+    if (details) {
+      const line = document.createElement('span');
+      line.className = 'details';
+      line.textContent = details;
+      what.appendChild(line);
+    }
+    if (t.progress != null) {
+      const far = document.createElement('span');
+      far.className = 'far';
+      const fill = document.createElement('b');
+      fill.style.width = Math.round(t.progress * 100) + '%';
+      far.appendChild(fill);
+      what.appendChild(far);
+    }
+    el.append(poster, what);
+    const shownKind = kind;
+    let timer = 0;
+    let held = false;
+    el.addEventListener('pointerdown', (event) => {
+      if (event.button > 0) return;
+      held = false;
+      clearTimeout(timer);
+      timer = setTimeout(() => {
+        held = true;
+        buzz();
+        send({ t: 'open', kind: shownKind, id: t.id, play: true });
+      }, HOLD_MS);
+    });
+    ['pointerup', 'pointercancel', 'pointerleave'].forEach((type) => el.addEventListener(type, () => clearTimeout(timer)));
+    el.addEventListener('contextmenu', (event) => event.preventDefault());
+    // A tap, a key or a screen reader: the title's page, with Play or Resume ready.
+    el.addEventListener('click', () => {
+      if (held) { held = false; return; }
+      buzz();
+      send({ t: 'open', kind: shownKind, id: t.id });
+    });
+    return el;
+  }
+  $('title-search').addEventListener('input', renderTitles);
 
   away();
   connect();

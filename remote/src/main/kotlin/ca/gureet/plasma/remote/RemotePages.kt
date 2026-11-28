@@ -75,6 +75,7 @@ class RemotePages(private val texts: Map<String, String>, private val language: 
             "pairTitle", "pairText", "codeLabel", "nameLabel", "pairButton", "wrongCode", "tooManyTries", "androidPhone", "computer",
             "connecting", "unreachable", "unreachableUnnamed",
             "searchChannels", "countsFromOne",
+            "movies", "series", "searchMovies", "searchSeries", "categoryLocked", "nothingHere",
             "typeTitle", "typingInto", "typeText", "nothingToType", "typingElsewhere", "tapToType", "paste", "clear", "done", "resultsOnTv",
         )
 

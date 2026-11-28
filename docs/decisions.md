@@ -1785,3 +1785,12 @@ docs/testing.md
 | A title's row | Its name, year and rating (none when the source gives none), how far in on Continue Watching, and whether it has a poster. | #230's rows. |
 | Posters | `/remote/poster/<kind>/<id>` on both listeners, as logos are: the TV fetches the source's poster (up to 4 MB), reads it at the nearest power of two above 180 pixels wide, makes it 180 wide as a JPEG, and keeps the last 200. A title with none, or one that won't load, is a 404, and the phone shows its name. | A phone row's poster is about 56 dp wide; 180 pixels is three times that. Phones never ask the provider, as for logos. |
 | Opening | A tap opens the title's page on the TV, Plasma coming forward as it does for a channel. A long press plays it: a movie from where it was left, with its page under it for Back; a series' page plays what its Resume or Play would, once its episodes are in, once. Only a title the profile sees now is opened, whatever a phone sends: none of a locked category. A tap older than 15 s when Plasma comes forward isn't opened. | #230's settled choices, with a series' episode picked as the TV's own page picks it (`upNext`, now public). |
+
+## The phone remote page's Movies and Series tabs (28 November 2026, #230)
+
+| Topic | Choice | Why |
+|---|---|---|
+| The tabs | Movies and Series between Channels and Type, shown while `state` says the profile has them, as in the apps, sharing one section that shows the kind picked. | #230: the web page and both apps at once. |
+| A tab | As the apps' and the page's own Channels: a search over the category shown, the categories as chips (a locked one with a lock, saying it opens on the TV with its PIN), "Thrillers · 250", rows with the poster, name, year, rating and how far in. Titles come 200 at a time. | #230. |
+| Tap and hold | A tap (or a key, or a screen reader) opens the title's page on the TV. A finger held for half a second plays it, with a buzz on Android, and the tap that would follow is dropped; the browser's long-press menu is turned off on rows. A row scrolled past does neither: scrolling cancels the hold. | #230's settled choices. Half a second is the browsers' own long-press time. |
+| Posters | Each row's poster loads as the row comes into view, over the title's name, and goes if it won't load, leaving the name. | A lazy image loads only once it's in the page, so it goes in at once, over the name. |

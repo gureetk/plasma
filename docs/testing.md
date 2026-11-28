@@ -1871,6 +1871,15 @@ The debug build of the Android app, paired with a TV, with Settings › Swipe Pa
 
 These come with the phone tabs. Until then, `docs/decisions.md` has the messages; the TV's side shows nothing new.
 
+## The phone remote page's Movies and Series tabs (28 November, #230)
+
+On a phone's browser, paired with a TV whose source has movies and series:
+
+- [ ] Movies and Series show between Channels and Type, and not with a source of live channels only.
+- [ ] The chips are the TV's categories, in its order; a locked one has a lock and says it opens on the TV.
+- [ ] A tap on a title opens its page on the TV; a hold plays it, without opening the browser's menu. Scrolling the list starts nothing.
+- [ ] Posters come in as the list scrolls; a title without one shows its name.
+
 ## Reporting a problem
 
 Open an issue with the bug form. Say what you pressed, what you expected and what happened, and add a photo of the screen if it helps.
