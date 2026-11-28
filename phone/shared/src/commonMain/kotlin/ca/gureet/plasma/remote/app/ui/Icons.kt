@@ -33,6 +33,9 @@ object RemoteIcons {
     val ClearField = stroked(2f, "M3.5 12a8.5 8.5 0 1 0 17 0 8.5 8.5 0 1 0-17 0z", "m9 9 6 6M15 9l-6 6")
     val Speaker = stroked(2.2f, "M11 5 6 9H3v6h3l5 4z", "M15.5 8.5a5 5 0 0 1 0 7")
     val Keyboard = TabType
+    val TabMovies = stroked(1.9f, "M5 4.5h14a1.5 1.5 0 0 1 1.5 1.5v12a1.5 1.5 0 0 1-1.5 1.5H5A1.5 1.5 0 0 1 3.5 18V6A1.5 1.5 0 0 1 5 4.5z", "M7.5 4.5v15M16.5 4.5v15", "M3.5 9h4M3.5 15h4M16.5 9h4M16.5 15h4")
+    val TabSeries = stroked(1.9f, "M4.7 7.5h14.6a1.7 1.7 0 0 1 1.7 1.7v8.6a1.7 1.7 0 0 1-1.7 1.7H4.7A1.7 1.7 0 0 1 3 17.8V9.2a1.7 1.7 0 0 1 1.7-1.7z", "m8.5 3.5 3.5 4 3.5-4")
+    val Lock = stroked(2.2f, "M6.5 11h11a1 1 0 0 1 1 1v7a1 1 0 0 1-1 1h-11a1 1 0 0 1-1-1v-7a1 1 0 0 1 1-1z", "M8.5 11V8a3.5 3.5 0 0 1 7 0v3")
     val Settings = stroked(2f, "M4 7h9M17 7h3M4 17h3M11 17h9", "M13 7a2 2 0 1 0 4 0 2 2 0 1 0-4 0z", "M7 17a2 2 0 1 0 4 0 2 2 0 1 0-4 0z")
 
     private fun stroked(width: Float, vararg paths: String): ImageVector = icon {

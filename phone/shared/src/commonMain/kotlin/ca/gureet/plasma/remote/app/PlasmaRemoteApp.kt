@@ -48,6 +48,8 @@ import ca.gureet.plasma.remote.app.resources.demo_one_program
 import ca.gureet.plasma.remote.app.resources.demo_programs
 import ca.gureet.plasma.remote.app.resources.demo_tv_name
 import ca.gureet.plasma.remote.app.resources.tab_channels
+import ca.gureet.plasma.remote.app.resources.tab_movies
+import ca.gureet.plasma.remote.app.resources.tab_series
 import ca.gureet.plasma.remote.app.resources.tab_remote
 import ca.gureet.plasma.remote.app.resources.tab_type
 import ca.gureet.plasma.remote.app.resources.forgotten
@@ -82,6 +84,9 @@ import ca.gureet.plasma.remote.app.ui.RemoteIcons
 import ca.gureet.plasma.remote.app.ui.RemoteTab
 import ca.gureet.plasma.remote.app.ui.RemoteTheme
 import ca.gureet.plasma.remote.app.ui.SystemBack
+import ca.gureet.plasma.remote.app.ui.LocalPosters
+import ca.gureet.plasma.remote.app.ui.Posters
+import ca.gureet.plasma.remote.app.ui.TitlesTab
 import ca.gureet.plasma.remote.app.ui.TypeTab
 import ca.gureet.plasma.remote.app.ui.tap
 import ca.gureet.plasma.remote.app.ui.textStyle
@@ -89,10 +94,11 @@ import ca.gureet.plasma.remote.protocol.RemoteProtocol
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.compose.LocalLifecycleOwner
 import androidx.lifecycle.repeatOnLifecycle
+import ca.gureet.plasma.remote.protocol.RemoteTitles
 import org.jetbrains.compose.resources.stringResource
 
-/** The app's three tabs (board 33). */
-enum class Tab { Remote, Channels, Type }
+/** The app's tabs: board 33's three, with Movies and Series between when the TV has them (#230). */
+enum class Tab { Remote, Channels, Movies, Series, Type }
 
 /** Where the app is: finding a TV, scanning its code, pairing with it, on a paired TV, or on the demo TV. */
 sealed interface AppScreen {
@@ -256,6 +262,11 @@ fun RemoteScreens(tv: TvLink, initialTab: Tab = Tab.Remote, onTv: (() -> Unit)? 
     val state by tv.state.collectAsState()
     val status by tv.status.collectAsState()
     val logos = remember(tv) { Logos(tv) }
+    val posters = remember(tv) { Posters(tv) }
+    // A tab for what the TV has: Movies and Series go when the profile has none (#230).
+    LaunchedEffect(tab, state.movies, state.series) {
+        if ((tab == Tab.Movies && !state.movies) || (tab == Tab.Series && !state.series)) tab = Tab.Remote
+    }
 
     // A text field got focus on the TV: the Type tab opens by itself and puts the keyboard up.
     // One there already when the app opens doesn't move it.
@@ -270,7 +281,7 @@ fun RemoteScreens(tv: TvLink, initialTab: Tab = Tab.Remote, onTv: (() -> Unit)? 
         hadField = hasField
     }
 
-    CompositionLocalProvider(LocalLogos provides logos) {
+    CompositionLocalProvider(LocalLogos provides logos, LocalPosters provides posters) {
         Box(Modifier.fillMaxSize().background(RemoteColors.Bg)) {
             Column(Modifier.fillMaxSize().windowInsetsPadding(WindowInsets.safeDrawing)) {
                 TopBar(tv.name, status == LinkStatus.Connected, onTv, onSettings)
@@ -283,11 +294,13 @@ fun RemoteScreens(tv: TvLink, initialTab: Tab = Tab.Remote, onTv: (() -> Unit)? 
                                 RemoteTab(tv, state.front, state.playing, state.keys, onNumbers = { numbers = true })
                             }
                             Tab.Channels -> ChannelsTab(tv, state.playing?.channelId)
+                            Tab.Movies -> TitlesTab(tv, RemoteTitles.MOVIES)
+                            Tab.Series -> TitlesTab(tv, RemoteTitles.SERIES)
                             Tab.Type -> TypeTab(tv, state.front, state.field, focusNow = typeOpenedItself)
                         }
                     }
                 }
-                TabBar(tab) {
+                TabBar(tab, movies = state.movies, series = state.series) {
                     tab = it
                     typeOpenedItself = false
                 }
@@ -341,13 +354,15 @@ private fun Unreachable(name: String) {
 }
 
 @Composable
-private fun TabBar(open: Tab, onTab: (Tab) -> Unit) {
+private fun TabBar(open: Tab, movies: Boolean, series: Boolean, onTab: (Tab) -> Unit) {
     Column(Modifier.fillMaxWidth().background(RemoteColors.Bg)) {
         Box(Modifier.fillMaxWidth().height(1.dp).background(RemoteColors.Line))
         Box(Modifier.fillMaxWidth(), contentAlignment = Alignment.TopCenter) {
             Row(Modifier.widthIn(max = 420.dp).fillMaxWidth().padding(start = 12.dp, end = 12.dp, top = 10.dp, bottom = 12.dp)) {
                 TabButton(Tab.Remote, RemoteIcons.TabRemote, stringResource(Res.string.tab_remote), open, onTab)
                 TabButton(Tab.Channels, RemoteIcons.TabChannels, stringResource(Res.string.tab_channels), open, onTab)
+                if (movies) TabButton(Tab.Movies, RemoteIcons.TabMovies, stringResource(Res.string.tab_movies), open, onTab)
+                if (series) TabButton(Tab.Series, RemoteIcons.TabSeries, stringResource(Res.string.tab_series), open, onTab)
                 TabButton(Tab.Type, RemoteIcons.TabType, stringResource(Res.string.tab_type), open, onTab)
             }
         }

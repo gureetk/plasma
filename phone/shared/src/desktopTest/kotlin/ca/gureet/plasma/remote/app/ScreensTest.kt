@@ -64,6 +64,11 @@ class ScreensTest {
 
     @Test fun theChannelsTab() = drawTab("33-channels", Tab.Channels)
 
+    /** The demo's Movies, on Recently Added, with the boards' posters (#230). */
+    @Test fun theMoviesTab() = drawTab("33-movies", Tab.Movies)
+
+    @Test fun theSeriesTab() = drawTab("33-series", Tab.Series)
+
     /** Settings' Swipe Pad Instead of D-pad, before it's first used. */
     @Test fun theSwipePad() = draw("33-remote-swipe") {
         val settings = remember { PhoneSettings(MemoryPrefs()).apply { swipePad(true) } }

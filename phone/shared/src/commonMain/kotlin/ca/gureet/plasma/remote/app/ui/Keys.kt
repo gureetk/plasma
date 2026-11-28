@@ -6,20 +6,21 @@ import androidx.compose.foundation.gestures.awaitFirstDown
 import androidx.compose.foundation.gestures.waitForUpOrCancellation
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.MutableState
-import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalHapticFeedback
-import ca.gureet.plasma.remote.app.settings.LocalPhoneSettings
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.onClick
+import androidx.compose.ui.semantics.onLongClick
 import androidx.compose.ui.semantics.role
 import androidx.compose.ui.semantics.semantics
+import ca.gureet.plasma.remote.app.settings.LocalPhoneSettings
 import ca.gureet.plasma.remote.app.tv.TvLink
 import ca.gureet.plasma.remote.protocol.RemoteKey
 
@@ -107,4 +108,58 @@ fun Modifier.swallowTaps(): Modifier = pointerInput(Unit) {
         awaitFirstDown(requireUnconsumed = false).consume()
         waitForUpOrCancellation()?.consume()
     }
+}
+
+/**
+ * A tap, or a finger held for the phone's long-press time, each with its own action and the same
+ * haptics: a title's row opens its page with a tap and plays with a hold (#230). A screen reader's
+ * activation taps, and its long-press action, named [holdLabel], holds. A row scrolled past does
+ * neither.
+ */
+@Composable
+fun Modifier.tapOrHold(label: String, holdLabel: String, pressed: MutableState<Boolean>? = null, onTap: () -> Unit, onHold: () -> Unit): Modifier {
+    val haptics = LocalHapticFeedback.current
+    val hapticsOn by rememberUpdatedState(LocalPhoneSettings.current?.haptics ?: true)
+    val tap by rememberUpdatedState(onTap)
+    val hold by rememberUpdatedState(onHold)
+    return this
+        .semantics {
+            role = Role.Button
+            contentDescription = label
+            onClick {
+                tap()
+                true
+            }
+            onLongClick(holdLabel) {
+                hold()
+                true
+            }
+        }
+        .pointerInput(label) {
+            awaitEachGesture {
+                awaitFirstDown(requireUnconsumed = false)
+                pressed?.value = true
+                try {
+                    var scrolled = false
+                    val up = withTimeoutOrNull(viewConfiguration.longPressTimeoutMillis) { waitForUpOrCancellation().also { if (it == null) scrolled = true } }
+                    when {
+                        up != null -> {
+                            up.consume()
+                            if (hapticsOn) haptics.performHapticFeedback(HapticFeedbackType.VirtualKey)
+                            tap()
+                        }
+                        // The list took the finger to scroll.
+                        scrolled -> Unit
+                        // Held: it plays, and lifting the finger afterwards does nothing more.
+                        else -> {
+                            if (hapticsOn) haptics.performHapticFeedback(HapticFeedbackType.LongPress)
+                            hold()
+                            waitForUpOrCancellation()?.consume()
+                        }
+                    }
+                } finally {
+                    pressed?.value = false
+                }
+            }
+        }
 }

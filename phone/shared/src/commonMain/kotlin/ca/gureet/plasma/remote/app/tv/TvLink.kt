@@ -4,6 +4,7 @@ package ca.gureet.plasma.remote.app.tv
 import ca.gureet.plasma.remote.protocol.RemoteKey
 import ca.gureet.plasma.remote.protocol.RemoteLists
 import ca.gureet.plasma.remote.protocol.RemoteState
+import ca.gureet.plasma.remote.protocol.RemoteTitles
 import kotlinx.coroutines.flow.StateFlow
 
 /** Whether the app can reach the TV it's paired with now. */
@@ -45,6 +46,19 @@ interface TvLink {
 
     /** A channel's logo as the TV has it (PNG, JPEG or WebP), or null for none. */
     suspend fun logo(channelId: String): ByteArray?
+
+    /**
+     * Movies' or Series' categories ([kind] is [RemoteTitles.MOVIES] or [RemoteTitles.SERIES]),
+     * and [categoryId]'s titles from [from]; null for the first category, and null back when the
+     * TV doesn't answer (#230).
+     */
+    suspend fun titles(kind: String, categoryId: String?, from: Int): RemoteTitles? = null
+
+    /** A title tapped: its page opens on the TV; long-pressed ([play]), it plays from where it was left. */
+    fun open(kind: String, id: String, play: Boolean) {}
+
+    /** A title's poster, as the TV made it for a row (JPEG), or null for none. */
+    suspend fun poster(kind: String, id: String): ByteArray? = null
 
     companion object {
         /** How many channels a list sends at a time (the web page's own). */

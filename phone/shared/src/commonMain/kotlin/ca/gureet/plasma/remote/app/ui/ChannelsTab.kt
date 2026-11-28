@@ -91,9 +91,9 @@ fun ChannelsTab(tv: TvLink, playingId: String?) {
 
     LazyColumn(Modifier.fillMaxSize(), state = rows, contentPadding = PaddingValues(start = 12.dp, end = 12.dp, top = 6.dp, bottom = 20.dp)) {
         // The rows reach 4 dp past the search field on each side, as on the web page.
-        item(key = "search") { Box(Modifier.padding(horizontal = 4.dp)) { SearchField(query) { query = it } } }
+        item(key = "search") { Box(Modifier.padding(horizontal = 4.dp)) { SearchField(query, stringResource(Res.string.search_channels)) { query = it } } }
         item(key = "chips") {
-            Chips(lists, shownList, Modifier.padding(start = 4.dp)) { id ->
+            Chips(lists.map { Chip(it.id, it.name) }, shownList, Modifier.padding(start = 4.dp)) { id ->
                 scope.launch {
                     load(id, 0)
                     rows.scrollToItem(0)
@@ -112,9 +112,9 @@ fun ChannelsTab(tv: TvLink, playingId: String?) {
     }
 }
 
+/** A search over the rows that have come, as the web page's: [hint] until something's typed. */
 @Composable
-private fun SearchField(query: String, onQuery: (String) -> Unit) {
-    val hint = stringResource(Res.string.search_channels)
+internal fun SearchField(query: String, hint: String, onQuery: (String) -> Unit) {
     Row(
         Modifier.fillMaxWidth().height(44.dp).clip(RoundedCornerShape(12.dp)).background(RemoteColors.Surface1).padding(horizontal = 14.dp),
         verticalAlignment = Alignment.CenterVertically,
@@ -136,16 +136,22 @@ private fun SearchField(query: String, onQuery: (String) -> Unit) {
     }
 }
 
+/** A chip across the top of a tab: a list of channels, or a category of titles, which may be [locked]. */
+internal data class Chip(val id: String, val name: String, val locked: Boolean = false)
+
 @Composable
-private fun Chips(lists: List<RemoteList>, shown: String?, modifier: Modifier = Modifier, onList: (String) -> Unit) {
+internal fun Chips(chips: List<Chip>, shown: String?, modifier: Modifier = Modifier, onChip: (String) -> Unit) {
     Row(modifier.padding(top = 12.dp).horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-        lists.forEach { list ->
-            val on = list.id == shown
-            Box(
-                Modifier.height(34.dp).clip(RoundedCornerShape(10.dp)).background(if (on) RemoteColors.Text else RemoteColors.Surface1).tap(list.name) { onList(list.id) }.padding(horizontal = 14.dp),
-                contentAlignment = Alignment.Center,
+        chips.forEach { chip ->
+            val on = chip.id == shown
+            val color = if (on) RemoteColors.Bg else RemoteColors.Soft
+            Row(
+                Modifier.height(34.dp).clip(RoundedCornerShape(10.dp)).background(if (on) RemoteColors.Text else RemoteColors.Surface1).tap(chip.name) { onChip(chip.id) }.padding(horizontal = 14.dp),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(6.dp),
             ) {
-                BasicText(list.name, style = textStyle(14.sp, if (on) FontWeight.SemiBold else FontWeight.Medium, if (on) RemoteColors.Bg else RemoteColors.Soft))
+                if (chip.locked) Icon(RemoteIcons.Lock, 14.dp, color)
+                BasicText(chip.name, style = textStyle(14.sp, if (on) FontWeight.SemiBold else FontWeight.Medium, color))
             }
         }
     }

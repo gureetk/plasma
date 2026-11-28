@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 package ca.gureet.plasma.remote.app.tv
 
+import ca.gureet.plasma.remote.protocol.RemoteTitles
 import kotlinx.serialization.Serializable
 
 /**
@@ -31,6 +32,7 @@ data class PairedTv(
         dialer = TvDialer { openTvSocket(where(), fingerprint) },
         onForgotten = onForgotten,
         fetchLogo = { channelId -> fetchFromTv(where(), fingerprint, "/remote/logo/" + pathSegment(channelId)) },
+        fetchPoster = { kind, id -> fetchFromTv(where(), fingerprint, RemoteTitles.POSTER_PATH + pathSegment(kind) + "/" + pathSegment(id)) },
     )
 }
 
