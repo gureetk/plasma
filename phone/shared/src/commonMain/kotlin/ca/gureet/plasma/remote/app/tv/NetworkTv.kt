@@ -6,6 +6,7 @@ import ca.gureet.plasma.remote.protocol.RemoteKey
 import ca.gureet.plasma.remote.protocol.RemoteLists
 import ca.gureet.plasma.remote.protocol.RemoteProtocol
 import ca.gureet.plasma.remote.protocol.RemoteState
+import ca.gureet.plasma.remote.protocol.RemoteTitles
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.CoroutineScope
@@ -108,6 +109,8 @@ class NetworkTv(
     private val onForgotten: (reason: String) -> Unit = {},
     /** A channel's logo from the TV, over the same pinned connection. */
     private val fetchLogo: suspend (channelId: String) -> ByteArray? = { null },
+    /** A title's poster from the TV, likewise (#230). */
+    private val fetchPoster: suspend (kind: String, id: String) -> ByteArray? = { _, _ -> null },
 ) : TvLink {
     private val _status = MutableStateFlow(LinkStatus.Connecting)
     override val status: StateFlow<LinkStatus> = _status.asStateFlow()
@@ -120,6 +123,7 @@ class NetworkTv(
     /** What the phone sends, in the order it's sent, while a connection is up. */
     private val outgoing = Channel<String>(Channel.UNLIMITED)
     private var listsAsked: CompletableDeferred<RemoteLists?>? = null
+    private var titlesAsked: CompletableDeferred<RemoteTitles?>? = null
     private var unanswered = 0
 
     /** Whether the TV sent its state on the connection that just ended: the tries again count from there. */
@@ -198,6 +202,7 @@ class NetworkTv(
                             reached = true
                         }
                         "lists" -> listsAsked?.complete(RemoteProtocol.json.decodeFromString(RemoteLists.serializer(), text))
+                        "titles" -> titlesAsked?.complete(RemoteProtocol.json.decodeFromString(RemoteTitles.serializer(), text))
                         "error" -> {
                             val reason = fields["reason"].orEmpty()
                             if (reason == RemoteProtocol.Reasons.AUTH || reason == RemoteProtocol.Reasons.VERSION) {
@@ -215,6 +220,7 @@ class NetworkTv(
         } finally {
             socket.close()
             listsAsked?.complete(null)
+            titlesAsked?.complete(null)
         }
     }
 
@@ -243,6 +249,18 @@ class NetworkTv(
     }
 
     override suspend fun logo(channelId: String): ByteArray? = fetchLogo(channelId)
+
+    override suspend fun titles(kind: String, categoryId: String?, from: Int): RemoteTitles? {
+        if (socket == null) return null
+        val asked = CompletableDeferred<RemoteTitles?>()
+        titlesAsked = asked
+        sendNow(PhoneMessages.titles(kind, categoryId, from))
+        return withTimeoutOrNull(ANSWER_MS) { asked.await() }
+    }
+
+    override fun open(kind: String, id: String, play: Boolean) = sendNow(PhoneMessages.open(kind, id, play))
+
+    override suspend fun poster(kind: String, id: String): ByteArray? = fetchPoster(kind, id)
 
     companion object {
         const val PING_MS = 15_000L

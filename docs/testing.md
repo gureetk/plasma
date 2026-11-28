@@ -1871,6 +1871,17 @@ The debug build of the Android app, paired with a TV, with Settings › Swipe Pa
 
 These come with the phone tabs. Until then, `docs/decisions.md` has the messages; the TV's side shows nothing new.
 
+## Plasma Remote's Movies and Series tabs (28 November, #230)
+
+The debug build of the Android app, paired with a TV whose source has movies and series:
+
+- [ ] Movies and Series show between Channels and Type. With a source of live channels only (or a profile that sees no movies), they don't.
+- [ ] Movies' chips are the TV's Movies categories, in its order, with its counts; a hidden category isn't there, and a locked one has a lock and says it opens on the TV.
+- [ ] A long category's titles keep coming as the list scrolls, with their posters; the search finds one by part of its name.
+- [ ] A tap on a movie opens its page on the TV, with Play or Resume, and nothing plays. A hold plays it from where it was left; Back on the TV goes to its page.
+- [ ] A tap on a series opens its page with its seasons. A hold plays the episode Resume would.
+- [ ] Continue Watching shows how far in each title is.
+- [ ] Switching profiles on the TV: both tabs follow the profile watching.
 ## The phone remote page's Movies and Series tabs (28 November, #230)
 
 On a phone's browser, paired with a TV whose source has movies and series:

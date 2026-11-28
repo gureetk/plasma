@@ -8,6 +8,13 @@
     <string name="tab_remote">Remote</string>
     <string name="tab_channels">Channels</string>
     <string name="tab_type">Type</string>
+    <string name="tab_movies">Movies</string>
+    <string name="tab_series">Series</string>
+    <string name="search_movies">Search movies</string>
+    <string name="search_series">Search series</string>
+    <string name="category_locked">%1$s is locked. Open it on the TV, with its PIN.</string>
+    <string name="nothing_here">Nothing here yet.</string>
+    <string name="play">Play</string>
 
     <string name="behind_live">%1$s behind live</string>
     <string name="go_live">Go Live</string>
