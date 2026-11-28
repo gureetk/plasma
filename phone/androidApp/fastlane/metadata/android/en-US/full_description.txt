@@ -1,0 +1,10 @@
+<p>Plasma Remote controls <b>Plasma</b>, the IPTV player and home screen for Android TV, from your phone. It's a remote, a channel list and a keyboard in one, on the same Wi-Fi as your TV.</p>
+<ul>
+<li><b>Remote:</b> the D-pad and OK (or a swipe pad), Back, Home and Menu, number entry, play and pause, channel up and down, and the color keys with what they do on the screen you're on. What's playing shows at the top, with how far behind live it is and Go Live.</li>
+<li><b>Channels:</b> your lists and channels as the TV has them, with their logos and what's on. A tap tunes the TV.</li>
+<li><b>Movies and Series:</b> your categories, with posters. A tap opens a title's page on the TV; a long press plays it.</li>
+<li><b>Type:</b> when a text field on the TV is ready, the keyboard opens on your phone, and what you type appears on the TV.</li>
+</ul>
+<p>It finds the TVs running Plasma on your Wi-Fi by itself. Pair it by scanning the code your TV shows, or by typing it. The connection to your TV is encrypted and pinned to your TV's own certificate.</p>
+<p>No account, no ads, no analytics: the app talks to your TV and nothing else. Try the Demo shows it all without a TV.</p>
+<p>You need Plasma on an Android TV or Google TV, with Settings › Remote &amp; Buttons › Phone Remote on.</p>

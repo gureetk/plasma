@@ -1,0 +1,1 @@
+The first release: Remote, Channels, Movies, Series and Type tabs; finding, scanning and pairing with the TV; Settings; Try the Demo.

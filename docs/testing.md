@@ -1897,6 +1897,14 @@ On a phone's browser, paired with a TV whose source has movies and series:
 - [ ] On an Android phone, the debug build's icon is Plasma's mark on a graphite tile, whatever shape the launcher gives icons, and with themed icons on it's tinted like the others.
 - [ ] Settings › About › Privacy Policy opens plasma.gureet.ca/remote-privacy.html once this is merged and the website has been deployed.
 
+## Plasma Remote's releases (28 November)
+
+Once the keys are in the `remote-release` environment and a `remote-v` tag is pushed:
+
+- [ ] The draft release has `plasma-remote-<version>.apk`, its mapping and `SHA256SUMS`, and isn't marked as the latest.
+- [ ] The APK installs over nothing else (its own key), opens on Find your TV, and pairs with the TV.
+- [ ] The iPhone build shows in TestFlight after Apple has processed it, and installs from there.
+
 ## Reporting a problem
 
 Open an issue with the bug form. Say what you pressed, what you expected and what happened, and add a photo of the screen if it helps.
