@@ -61,6 +61,7 @@ import ca.gureet.plasma.remote.app.resources.no_paired_tvs
 import ca.gureet.plasma.remote.app.resources.off
 import ca.gureet.plasma.remote.app.resources.on
 import ca.gureet.plasma.remote.app.resources.paired_tvs
+import ca.gureet.plasma.remote.app.resources.privacy_policy
 import ca.gureet.plasma.remote.app.resources.remote_section
 import ca.gureet.plasma.remote.app.resources.settings
 import ca.gureet.plasma.remote.app.resources.source_code
@@ -139,6 +140,8 @@ fun SettingsScreen(settings: PhoneSettings, paired: List<PairedTv>, version: Str
             }
             Line()
             Link(stringResource(Res.string.source_code)) { links.openUri(SOURCE) }
+            Line()
+            Link(stringResource(Res.string.privacy_policy)) { links.openUri(PRIVACY) }
         }
 
         Heading(stringResource(Res.string.licenses))
@@ -208,5 +211,6 @@ private fun License(component: String, license: String, onTap: () -> Unit) {
 }
 
 private const val SOURCE = "https://github.com/gureetk/plasma/tree/main/phone"
+private const val PRIVACY = "https://plasma.gureet.ca/remote-privacy.html"
 private const val APACHE = "https://www.apache.org/licenses/LICENSE-2.0"
 private const val OFL = "https://openfontlicense.org"

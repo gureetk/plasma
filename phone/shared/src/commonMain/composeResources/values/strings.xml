@@ -88,6 +88,7 @@
     <string name="about_version">Plasma Remote %1$s</string>
     <string name="about_licence">Free software under the Apache License 2.0.</string>
     <string name="source_code">Source Code</string>
+    <string name="privacy_policy">Privacy Policy</string>
     <string name="licenses">Licenses</string>
     <string name="license_apache">Apache License 2.0</string>
     <string name="license_ofl">SIL Open Font License 1.1</string>
