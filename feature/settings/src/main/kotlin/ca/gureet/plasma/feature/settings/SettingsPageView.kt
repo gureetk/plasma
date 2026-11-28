@@ -124,6 +124,7 @@ internal fun SettingsPageView(
             if (section.divider) add("divider-$i")
             if (section.label != null) add("label-$i")
             shown[i].forEach { add(it.id) }
+            if (section.note != null) add("note-$i")
         }
     }
 
@@ -319,6 +320,7 @@ internal fun SettingsPageView(
                             .then(if (item.id == sheetFor?.id) Modifier.focusRequester(sheetReturn) else Modifier),
                     )
                 }
+                section.note?.let { note -> item(key = "note-$i") { Box(Modifier.itemMotion(this, reduceMotion)) { SectionNote(note) } } }
             }
         }
 

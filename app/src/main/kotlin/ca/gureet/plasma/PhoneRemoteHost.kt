@@ -146,10 +146,10 @@ class PhoneRemoteHost(private val graph: AppGraph, private val context: Context,
     }
 
     private val store = object : PhoneStore {
-        override suspend fun phones(): List<PairedPhone> = graph.data.settings.phonesNow().map { PairedPhone(it.id, it.name, it.tokenHash, it.pairedAt, it.lastSeen) }
+        override suspend fun phones(): List<PairedPhone> = graph.data.settings.phonesNow().map { PairedPhone(it.id, it.name, it.tokenHash, it.pairedAt, it.lastSeen, it.app) }
 
         override suspend fun save(phone: PairedPhone) =
-            graph.data.settings.savePhone(PhoneRecord(phone.id, phone.name, phone.tokenHash, phone.pairedAt, phone.lastSeen))
+            graph.data.settings.savePhone(PhoneRecord(phone.id, phone.name, phone.tokenHash, phone.pairedAt, phone.lastSeen, phone.app))
 
         override suspend fun remove(id: String) = graph.data.settings.removePhone(id)
     }

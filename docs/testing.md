@@ -1905,6 +1905,14 @@ Once the keys are in the `remote-release` environment and a `remote-v` tag is pu
 - [ ] The APK installs over nothing else (its own key), opens on Find your TV, and pairs with the TV.
 - [ ] The iPhone build shows in TestFlight after Apple has processed it, and installs from there.
 
+## The TV's Phone Remote page with the apps (28 November)
+
+On the TV, Settings › Remote & Buttons › Phone Remote, with one phone paired in its browser and one with the Plasma Remote app:
+
+- [ ] Under Paired phones: "Prefer an app? Plasma Remote for iPhone and Android finds this TV by itself."; focus goes from the last phone to nothing else.
+- [ ] The app's phone says "Connected · App" while the app is open, and the browser's phone "Browser" after its status.
+- [ ] A phone paired before this build says how it connects once it has connected again.
+
 ## Reporting a problem
 
 Open an issue with the bug form. Say what you pressed, what you expected and what happened, and add a photo of the screen if it helps.

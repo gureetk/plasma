@@ -79,8 +79,11 @@ interface RemoteHandler {
     fun disconnected() {}
 }
 
-/** A phone paired as a remote (brief 5.21): its name, and its token, kept only as a hash. */
-data class PairedPhone(val id: String, val name: String, val tokenHash: String, val pairedAt: Long, val lastSeen: Long)
+/**
+ * A phone paired as a remote (brief 5.21): its name, and its token, kept only as a hash; [app]
+ * when it last connected through the apps' TLS listener (5.22) rather than the web page's.
+ */
+data class PairedPhone(val id: String, val name: String, val tokenHash: String, val pairedAt: Long, val lastSeen: Long, val app: Boolean = false)
 
 /** Where the paired phones are kept, on the TV only. */
 interface PhoneStore {
@@ -157,7 +160,8 @@ class RemoteServer(
     }
 
     /** A phone's connection, and the phone once it's let in. */
-    private inner class Session(val socket: Socket, val ws: WebSocket) {
+    /** A phone's connection; [secure] when it came to the apps' TLS listener, which pages can't open. */
+    private inner class Session(val socket: Socket, val ws: WebSocket, val secure: Boolean) {
         @Volatile var phone: PairedPhone? = null
 
         /** A phone on a protocol the TV doesn't speak gets its welcome, then nothing more. */
@@ -352,7 +356,7 @@ class RemoteServer(
         out.flush()
         // A phone that stays connected sends a ping every 15 s.
         socket.soTimeout = IDLE_TIMEOUT_MS
-        val session = Session(socket, WebSocket(socket.getInputStream(), out))
+        val session = Session(socket, WebSocket(socket.getInputStream(), out), secure)
         sessions += session
         try {
             while (!closed) {
@@ -422,7 +426,7 @@ class RemoteServer(
         if (wrong != null) return session.send(TvMessages.error(wrong))
         val token = ByteArray(TOKEN_BYTES).also(random::nextBytes).let { Base64.getUrlEncoder().withoutPadding().encodeToString(it) }
         val at = now()
-        val phone = PairedPhone(UUID.randomUUID().toString(), name.trim().take(MAX_NAME).ifEmpty { unnamed }, hash(token), at, at)
+        val phone = PairedPhone(UUID.randomUUID().toString(), name.trim().take(MAX_NAME).ifEmpty { unnamed }, hash(token), at, at, app = session.secure)
         runBlocking { store.save(phone) }
         // One phone per code: the TV shows a new one.
         synchronized(this) { newCode() }
@@ -437,7 +441,8 @@ class RemoteServer(
         val hashed = hash(token)
         val phone = runBlocking { store.phones() }.firstOrNull { same(it.tokenHash, hashed) }
         if (phone == null) return session.send(TvMessages.error(RemoteProtocol.Reasons.AUTH))
-        val seen = phone.copy(lastSeen = now())
+        // How it connects is as it does now: a phone paired before the TV said so says it here.
+        val seen = phone.copy(lastSeen = now(), app = session.secure)
         runBlocking { store.save(seen) }
         session.phone = seen
         session.send(TvMessages.state(state))

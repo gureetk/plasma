@@ -287,6 +287,8 @@ internal class SettingSection(
     val divider: Boolean = false,
     val onMove: ((List<String>) -> Unit)? = null,
     val reordering: Boolean = false,
+    /** A line under the rows, which focus passes by: Phone Remote's "Prefer an app?…" (brief 4.33). */
+    val note: String? = null,
 )
 
 /** A page of Settings: its header, how it's drawn, and its rows. */

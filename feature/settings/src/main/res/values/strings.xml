@@ -1490,6 +1490,12 @@
     <!-- "Last used Mon 19 Oct" -->
     <string name="phone_last_used">Last used %1$s</string>
     <string name="phone_text">This phone can control Plasma from its browser. OK renames it, or forgets it so it can’t any more.</string>
+    <string name="phone_text_app">This phone controls Plasma with the Plasma Remote app. OK renames it, or forgets it so it can’t any more.</string>
+    <!-- How a paired phone connects, after its status: "Connected · App" (brief 4.33). -->
+    <string name="phone_via_app">App</string>
+    <string name="phone_via_browser">Browser</string>
+    <!-- Under Paired phones, once the Plasma Remote apps exist (brief 4.33). -->
+    <string name="phone_app_note">Prefer an app? Plasma Remote for iPhone and Android finds this TV by itself.</string>
     <string name="rename">Rename</string>
     <string name="forget">Forget</string>
     <string name="forget_phone_title">Forget %1$s?</string>

@@ -28,6 +28,18 @@ class PhoneRemoteSettingsTest : ScreenshotTest() {
         check(forgotten == listOf("Maya’s iPhone")) { "Forgot $forgotten" }
     }
 
+    /** Each phone says how it connects, and the apps are offered under the list (brief 4.33). */
+    @Test fun eachPhoneSaysHowItConnects() {
+        screen { SettingsScreen(SettingsPage.PhoneRemote, SettingsValues(), SettingsActions()) }
+
+        compose.onNodeWithText("Connected · App").assertExists()
+        compose.onNodeWithText("Yesterday · Browser").assertExists()
+        compose.onNodeWithText("Prefer an app? Plasma Remote for iPhone and Android finds this TV by itself.").assertExists()
+        press(Key.DirectionDown)
+        compose.onNodeWithText("Connected now · App").assertExists()
+        compose.onNodeWithText("This phone controls Plasma with the Plasma Remote app. OK renames it, or forgets it so it can’t any more.").assertExists()
+    }
+
     @Test fun renameTypesANewName() {
         val renamed = mutableListOf<Pair<String, String>>()
         screen { SettingsScreen(SettingsPage.PhoneRemote, SettingsValues(), SettingsActions(onRenamePhone = { id, name -> renamed += id to name })) }

@@ -32,6 +32,7 @@ import okhttp3.WebSocket
 import okhttp3.WebSocketListener
 import org.junit.After
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNotEquals
 import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertTrue
@@ -222,6 +223,8 @@ class RemoteServerTest {
         assertEquals(1, store.phones.size)
         val kept = store.phones.values.single()
         assertEquals("Maya’s iPhone", kept.name)
+        // The web page's listener: a browser, not the app.
+        assertFalse(kept.app)
         // Only a hash of the token is kept.
         assertNotEquals(token, kept.tokenHash)
         assertEquals(RemoteServer.hash(token), kept.tokenHash)
